@@ -15,9 +15,9 @@ class TrioClient:
     BASE_URL = "https://trio.machinefi.com/api"
 
     def __init__(self, api_key: str):
-        self.api_key = api_key
+        self.api_key = api_key.strip()
         self.headers = {
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
 
