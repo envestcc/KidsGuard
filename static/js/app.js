@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Load existing webhook.site token on page load
 async function loadWebhookSiteToken() {
   try {
-    const res = await fetch('/api/webhook-site/token');
+    const res = await fetch('/v1/webhook-site/token');
     const data = await res.json();
     if (data.uuid) {
       webhookSiteToken = data;
@@ -91,7 +91,7 @@ async function validateStream() {
   statusDiv.classList.remove('hidden', 'valid', 'invalid');
 
   try {
-    const res = await fetch('/api/validate-stream', {
+    const res = await fetch('/v1/validate-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stream_url: url }),
@@ -149,7 +149,7 @@ function embedStreamPreview(url) {
 // ══════════════════════════════════════════════════════════════
 async function loadPresets() {
   try {
-    const res = await fetch('/api/presets');
+    const res = await fetch('/v1/presets');
     const presets = await res.json();
     const grid = document.getElementById('presetGrid');
     grid.innerHTML = '';
@@ -202,7 +202,7 @@ async function runSafetyCheck(condition) {
   showToast('Running AI safety analysis…', 'info', 8000);
 
   try {
-    const res = await fetch('/api/check', {
+    const res = await fetch('/v1/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stream_url: streamUrl, condition }),
@@ -266,7 +266,7 @@ async function createWebhookSite() {
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Creating…'; }
 
   try {
-    const res = await fetch('/api/webhook-site/create', { method: 'POST' });
+    const res = await fetch('/v1/webhook-site/create', { method: 'POST' });
     const data = await res.json();
 
     if (data.error) { showToast(`Webhook.site error: ${data.error}`, 'error'); return; }
@@ -320,7 +320,7 @@ function stopWebhookSitePolling() {
 
 async function pollWebhookSiteEvents() {
   try {
-    const res = await fetch('/api/webhook-site/events');
+    const res = await fetch('/v1/webhook-site/events');
     const data = await res.json();
 
     if (data.error) return;
@@ -404,7 +404,7 @@ async function startMonitor() {
   btn.innerHTML = '<span class="spinner"></span> Starting…';
 
   try {
-    const res = await fetch('/api/monitor/start', {
+    const res = await fetch('/v1/monitor/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stream_url: streamUrl, condition }),
@@ -434,12 +434,12 @@ async function startMonitor() {
 async function stopAllMonitors() {
   if (!confirm('Stop all active monitoring jobs?')) return;
   try {
-    const res = await fetch('/api/monitor/jobs');
+    const res = await fetch('/v1/monitor/jobs');
     const data = await res.json();
     const runningJobs = (data.jobs || []).filter(j => j.status === 'running');
 
     for (const job of runningJobs) {
-      await fetch('/api/monitor/stop', {
+      await fetch('/v1/monitor/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: job.job_id }),
@@ -457,7 +457,7 @@ async function stopAllMonitors() {
 
 async function cancelJob(jobId) {
   try {
-    await fetch('/api/monitor/stop', {
+    await fetch('/v1/monitor/stop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ job_id: jobId }),
@@ -472,7 +472,7 @@ async function cancelJob(jobId) {
 async function refreshJobs() {
   const container = document.getElementById('jobsList');
   try {
-    const res = await fetch('/api/monitor/jobs');
+    const res = await fetch('/v1/monitor/jobs');
     const data = await res.json();
     const jobs = data.jobs || [];
 
@@ -513,7 +513,7 @@ function startWebhookPolling() {
   if (pollingInterval) return;
   pollingInterval = setInterval(async () => {
     try {
-      const res = await fetch('/api/webhook/events');
+      const res = await fetch('/v1/webhook/events');
       const events = await res.json();
       // Process any new triggered events
       events.forEach(ev => {
@@ -545,7 +545,7 @@ async function startDigest() {
 
   try {
     const evtSource = new EventSource(
-      `/api/digest/start-sse?stream_url=${encodeURIComponent(streamUrl)}`
+      `/v1/digest/start-sse?stream_url=${encodeURIComponent(streamUrl)}`
     );
 
     evtSource.onmessage = (event) => {
@@ -587,7 +587,7 @@ async function startDigest() {
 // ══════════════════════════════════════════════════════════════
 async function loadAlertHistory() {
   try {
-    const res = await fetch('/api/alerts');
+    const res = await fetch('/v1/alerts');
     const alerts = await res.json();
     renderHistory(alerts);
   } catch (e) { /* ignore */ }
@@ -629,7 +629,7 @@ function renderHistory(alerts) {
 async function filterHistory() {
   const level = document.getElementById('historyFilter').value;
   try {
-    const url = level ? `/api/alerts?level=${level}` : '/api/alerts';
+    const url = level ? `/v1/alerts?level=${level}` : '/v1/alerts';
     const res = await fetch(url);
     const alerts = await res.json();
     renderHistory(alerts);
@@ -637,14 +637,14 @@ async function filterHistory() {
 }
 
 async function exportAlerts() {
-  window.open('/api/alerts/export', '_blank');
+  window.open('/v1/alerts/export', '_blank');
   showToast('Exporting alerts…', 'info');
 }
 
 async function clearAlerts() {
   if (!confirm('Clear all alert history?')) return;
   try {
-    await fetch('/api/alerts/clear', { method: 'POST' });
+    await fetch('/v1/alerts/clear', { method: 'POST' });
     document.getElementById('historyBody').innerHTML = '<tr><td colspan="6" class="muted">History cleared.</td></tr>';
     showToast('History cleared', 'info');
   } catch (e) { showToast('Failed to clear', 'error'); }

@@ -24,7 +24,10 @@ from trio_client import TrioClient
 # ──────────────────────────────────────────────────────────────────────
 #  Configuration
 # ──────────────────────────────────────────────────────────────────────
-app = Flask(__name__)
+_root = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__,
+            static_folder=os.path.join(_root, "static"),
+            template_folder=os.path.join(_root, "templates"))
 app.secret_key = os.urandom(24)
 
 TRIO_API_KEY = os.environ.get("TRIO_API_KEY", "")
@@ -128,7 +131,7 @@ def index():
 #  API — Stream validation
 # ══════════════════════════════════════════════════════════════════════
 
-@app.route("/api/validate-stream", methods=["POST"])
+@app.route("/v1/validate-stream", methods=["POST"])
 def validate_stream():
     data = request.json or {}
     stream_url = data.get("stream_url", "").strip()
@@ -142,12 +145,12 @@ def validate_stream():
 #  API — One-shot safety checks  (/check-once)
 # ══════════════════════════════════════════════════════════════════════
 
-@app.route("/api/presets", methods=["GET"])
+@app.route("/v1/presets", methods=["GET"])
 def get_presets():
     return jsonify(SAFETY_PRESETS)
 
 
-@app.route("/api/check", methods=["POST"])
+@app.route("/v1/check", methods=["POST"])
 def safety_check():
     """Run a single safety check via Trio /check-once."""
     data = request.json or {}
@@ -191,7 +194,7 @@ def safety_check():
 #  API — webhook.site integration
 # ══════════════════════════════════════════════════════════════════════
 
-@app.route("/api/webhook-site/create", methods=["POST"])
+@app.route("/v1/webhook-site/create", methods=["POST"])
 def create_webhook_site_token():
     """
     Create a new webhook.site token (free, no auth).
@@ -219,15 +222,15 @@ def create_webhook_site_token():
         return jsonify({"error": f"Failed to create webhook.site token: {exc}"}), 502
 
 
-@app.route("/api/webhook-site/token", methods=["GET"])
+@app.route("/v1/webhook-site/token", methods=["GET"])
 def get_webhook_site_token():
     """Return the current webhook.site token info."""
     if not webhook_site_token:
-        return jsonify({"error": "No webhook.site token created yet"}), 404
+        return jsonify({})
     return jsonify(webhook_site_token)
 
 
-@app.route("/api/webhook-site/events", methods=["GET"])
+@app.route("/v1/webhook-site/events", methods=["GET"])
 def get_webhook_site_events():
     """
     Poll webhook.site API to fetch events received by our token.
@@ -295,7 +298,7 @@ def get_webhook_site_events():
 #  API — Continuous monitoring  (/live-monitor)
 # ══════════════════════════════════════════════════════════════════════
 
-@app.route("/api/monitor/start", methods=["POST"])
+@app.route("/v1/monitor/start", methods=["POST"])
 def start_monitor():
     """Start a continuous monitoring job via Trio /live-monitor."""
     data = request.json or {}
@@ -310,7 +313,7 @@ def start_monitor():
     if not webhook_url and webhook_site_token.get("url"):
         webhook_url = webhook_site_token["url"]
     elif not webhook_url:
-        webhook_url = request.url_root.rstrip("/") + "/api/webhook"
+        webhook_url = request.url_root.rstrip("/") + "/v1/webhook"
 
     try:
         result = trio.start_monitor(stream_url, condition, webhook_url)
@@ -329,7 +332,7 @@ def start_monitor():
     return jsonify(active_monitors[job_id])
 
 
-@app.route("/api/monitor/stop", methods=["POST"])
+@app.route("/v1/monitor/stop", methods=["POST"])
 def stop_monitor():
     """Cancel a running monitoring job."""
     data = request.json or {}
@@ -346,17 +349,18 @@ def stop_monitor():
     return jsonify(result)
 
 
-@app.route("/api/monitor/jobs", methods=["GET"])
+@app.route("/v1/monitor/jobs", methods=["GET"])
 def list_monitor_jobs():
     """List all monitoring jobs from Trio API."""
     try:
         result = trio.list_jobs()
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 502
+        # Graceful fallback so frontend doesn't break
+        return jsonify({"jobs": [], "total": 0, "error": str(exc)})
     return jsonify(result)
 
 
-@app.route("/api/monitor/job/<job_id>", methods=["GET"])
+@app.route("/v1/monitor/job/<job_id>", methods=["GET"])
 def get_monitor_job(job_id):
     """Get details for a specific job."""
     try:
@@ -370,7 +374,7 @@ def get_monitor_job(job_id):
 #  API — Webhook receiver
 # ══════════════════════════════════════════════════════════════════════
 
-@app.route("/api/webhook", methods=["POST"])
+@app.route("/v1/webhook", methods=["POST"])
 def webhook_receiver():
     """Receive webhook events from Trio API."""
     payload = request.json or {}
@@ -421,7 +425,7 @@ def webhook_receiver():
     return jsonify({"status": "ok"})
 
 
-@app.route("/api/webhook/events", methods=["GET"])
+@app.route("/v1/webhook/events", methods=["GET"])
 def get_webhook_events():
     """Return recent webhook events."""
     return jsonify(webhook_events[:50])
@@ -431,7 +435,7 @@ def get_webhook_events():
 #  API — Live Digest  (/live-digest via SSE proxy)
 # ══════════════════════════════════════════════════════════════════════
 
-@app.route("/api/digest/start", methods=["POST"])
+@app.route("/v1/digest/start", methods=["POST"])
 def start_digest():
     """
     Proxy the Trio /live-digest SSE stream to the browser.
@@ -472,7 +476,7 @@ def start_digest():
     )
 
 
-@app.route("/api/digest/start-sse")
+@app.route("/v1/digest/start-sse")
 def start_digest_sse_get():
     """GET variant so the browser can use EventSource directly."""
     stream_url = request.args.get("stream_url", "").strip()
@@ -496,7 +500,7 @@ def start_digest_sse_get():
     )
 
 
-@app.route("/api/digest/summaries", methods=["GET"])
+@app.route("/v1/digest/summaries", methods=["GET"])
 def get_digests():
     return jsonify(digest_summaries[:50])
 
@@ -505,7 +509,7 @@ def get_digests():
 #  API — Alert history
 # ══════════════════════════════════════════════════════════════════════
 
-@app.route("/api/alerts", methods=["GET"])
+@app.route("/v1/alerts", methods=["GET"])
 def get_alerts():
     level = request.args.get("level", "").strip()
     if level:
@@ -514,7 +518,7 @@ def get_alerts():
     return jsonify(alert_history[:100])
 
 
-@app.route("/api/alerts/export", methods=["GET"])
+@app.route("/v1/alerts/export", methods=["GET"])
 def export_alerts():
     """Export alerts as downloadable JSON."""
     return Response(
@@ -524,7 +528,7 @@ def export_alerts():
     )
 
 
-@app.route("/api/alerts/clear", methods=["POST"])
+@app.route("/v1/alerts/clear", methods=["POST"])
 def clear_alerts():
     alert_history.clear()
     return jsonify({"status": "cleared"})
